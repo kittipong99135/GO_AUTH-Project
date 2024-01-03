@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"context"
+	"fmt"
 	"god-dev/database"
 	"god-dev/models"
 
@@ -8,9 +10,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func User(c *fiber.Ctx) error {
+// Functions Userparams after login - User routher.
+func UserParams(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/user/params/dashboard
 	user := c.Locals("user").(*jwt.Token)
 	claims := user.Claims.(jwt.MapClaims)
+	fmt.Print(claims["uid"])
 	return c.Status(200).JSON(fiber.Map{
 		"status":  "success",
 		"message": "Success : Read user success",
@@ -18,7 +22,8 @@ func User(c *fiber.Ctx) error {
 	})
 }
 
-func UserList(c *fiber.Ctx) error {
+// Functions List all users - User routher .
+func UserList(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/user/
 	db := database.DBConn
 
 	var listUser []models.User
@@ -101,7 +106,6 @@ func UserRemove(c *fiber.Ctx) error {
 		"status":  "success",
 		"message": "Success : Remove user success",
 	})
-
 }
 
 func UserActive(c *fiber.Ctx) error {
@@ -138,4 +142,45 @@ func UserActive(c *fiber.Ctx) error {
 		"message": "Success : Active user success.",
 		"result":  activeUser,
 	})
+}
+
+func UserLogout(c *fiber.Ctx) error {
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	uid := fmt.Sprintf("%v", claims["uid"])
+	result, err := DeleteFromRedis("access_token:" + uid)
+	if err != nil {
+		return c.Status(503).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Error : Delete access token from redis server.",
+			"error":   err.Error(),
+		})
+	}
+	fmt.Println("Delete access toeken : " + result + " | Success")
+
+	result, err = DeleteFromRedis("refresh_token:" + uid)
+	if err != nil {
+		return c.Status(503).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Error : Delete refresh  token from redis server.",
+			"error":   err.Error(),
+		})
+	}
+	fmt.Println("Delete access toeken : " + result + " | Success")
+
+	return c.Status(200).JSON(fiber.Map{
+		"status":  "success",
+		"message": "User Logout success.",
+	})
+
+}
+
+func DeleteFromRedis(key string) (string, error) {
+	rd := database.RDConn
+	ctx := context.Background()
+	val, err := rd.GetDel(ctx, key).Result()
+	if err != nil {
+		return "", err
+	}
+	return val, nil
 }

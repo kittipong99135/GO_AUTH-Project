@@ -14,12 +14,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func Regis(c *fiber.Ctx) error {
-	db := database.DBConn
-	var regisBody models.User
+// Functions register - Authen routher.
+func Regis(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/auth/register
 
+	// Connect Database.
+	db := database.DBConn
+
+	// Recive body parser register routes.
+	var regisBody models.User
 	err := c.BodyParser(&regisBody)
-	if err != nil {
+	if err != nil { // Case : Input json data invalid.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Error : Regid body invalid.",
@@ -27,24 +31,27 @@ func Regis(c *fiber.Ctx) error {
 		})
 	}
 
+	// Checked user exists.
 	var userExists models.User
 	result := db.Find(&userExists, "email = ?", strings.TrimSpace(regisBody.Email))
 	if result.RowsAffected != 0 {
-		return c.Status(503).JSON(fiber.Map{
+		return c.Status(503).JSON(fiber.Map{ // Case : Input email id exists.
 			"status":  "error",
 			"message": "Error : Email exists.",
 		})
 	}
 
+	// Hash password
 	hash, err := bcrypt.GenerateFromPassword([]byte(regisBody.Password), 10)
 	if err != nil {
-		c.Status(503).JSON(fiber.Map{
+		c.Status(503).JSON(fiber.Map{ // Case : Hash password invalid.
 			"status":  "error",
 			"message": "Error : Invalid password hashing.",
 			"error":   err.Error(),
 		})
 	}
 
+	// Create register data.
 	userRegisted := models.User{
 		Email:    regisBody.Email,
 		Password: "secretpass:" + string(hash),
@@ -56,7 +63,10 @@ func Regis(c *fiber.Ctx) error {
 		Role:     "user",
 	}
 
+	// Insert register data into database.
 	db.Create(&userRegisted)
+
+	// Return Status200, Json data
 	return c.Status(200).JSON(fiber.Map{
 		"status":  "success",
 		"massage": "User register success",
@@ -64,12 +74,16 @@ func Regis(c *fiber.Ctx) error {
 	})
 }
 
-func Login(c *fiber.Ctx) error {
+// Functions register - Authen login.
+func Login(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/auth/login
+
+	// Connect Database.
 	db := database.DBConn
 
+	// Recive body parser register routes.
 	var loginBody models.RequestLogin
 	err := c.BodyParser(&loginBody)
-	if err != nil {
+	if err != nil { // Case : Input json data invalid.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Error : Logging body invalid.",
@@ -77,18 +91,21 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
+	// Checked email address.
 	var user models.User
 	result := db.Find(&user, "email = ?", strings.TrimSpace(loginBody.Email))
-	if result.RowsAffected == 0 {
+	if result.RowsAffected == 0 { // Case : can't find email in database.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Error : Email invalid.",
 		})
 	}
 
+	// Compare password.
 	splitPass := strings.Split(user.Password, ":")[1:][0]
 	err = bcrypt.CompareHashAndPassword([]byte(splitPass), []byte(loginBody.Password))
-	if err != nil {
+
+	if err != nil { // Case : Input password invalid.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Error : Compare password error.",
@@ -96,28 +113,34 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert to string user.ID.
 	udid := strconv.Itoa(int(user.ID))
 
+	// Create access token then save "JWT_SECRET" in .env file
 	acc_token, err := CreateToken(udid, "JWT_SECRET")
 	if err != nil {
-		c.Status(503).JSON(fiber.Map{
+		c.Status(503).JSON(fiber.Map{ // Case : Create access token invalid.
 			"status":  "error",
 			"message": "Error : Create access token  error.",
 			"error":   err.Error(),
 		})
 	}
+	// Save access token to redis server -> key:access_toekn:udid, val:acc_token
 	SetAccessToken("access_token:"+udid, acc_token)
 
+	// Create refresh token then save "JWT_REFRESH" in .env file
 	rfh_token, err := CreateToken(udid, "JWT_REFRESH")
 	if err != nil {
-		c.Status(503).JSON(fiber.Map{
+		c.Status(503).JSON(fiber.Map{ // Case : Create refresh token invalid.
 			"status":  "error",
 			"message": "Error : Create refresh token error.",
 			"error":   err.Error(),
 		})
 	}
-	SerRefreshToken("refresh_token:"+udid, rfh_token)
+	// Save refresh token to redis server -> key:refresh_token:udid, val:rfh_token
+	SetRefreshToken("refresh_token:"+udid, rfh_token)
 
+	// Return Status200, json data
 	return c.Status(200).JSON(fiber.Map{
 		"status":        "success",
 		"message":       "Success : Logging in success.",
@@ -139,15 +162,15 @@ func SetAccessToken(key string, token string) {
 	rd.Set(ctx, key, token, time.Hour*2)
 }
 
+func SetRefreshToken(key string, token string) {
+	rd := database.RDConn
+	ctx := context.Background()
+	rd.Set(ctx, key, token, 0)
+}
+
 func GetToken(key string) string {
 	rd := database.RDConn
 	ctx := context.Background()
 	val, _ := rd.Get(ctx, key).Result()
 	return val
-}
-
-func SerRefreshToken(key string, token string) {
-	rd := database.RDConn
-	ctx := context.Background()
-	rd.Set(ctx, key, token, 0)
 }
