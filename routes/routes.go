@@ -23,9 +23,9 @@ func Routes(app *fiber.App) {
 	//Users routers function
 	user.Post("/logout", controllers.UserLogout)
 	user.Get("/params/dashboard", controllers.UserParams)
-	user.Get("/", controllers.UserList)
+	user.Get("/", middleware.ReqAdmin, controllers.UserList)
 	user.Get("/:id", controllers.UserRead)
 	user.Put("/:id", controllers.UserUpdate)
-	user.Put("/active/:id", controllers.UserActive)
+	user.Put("/active/:id", middleware.ReqAdmin, controllers.UserActive)
 	user.Delete("/:id", controllers.UserRemove)
 }

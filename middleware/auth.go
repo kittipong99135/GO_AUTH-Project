@@ -2,8 +2,11 @@ package middleware
 
 import (
 	"fmt"
-	"god-dev/controllers"
 	"os"
+
+	"god-dev/controllers"
+	"god-dev/database"
+	"god-dev/models"
 
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
@@ -22,6 +25,34 @@ func RefreshAuth() func(*fiber.Ctx) error {
 		SigningKey:     jwtware.SigningKey{Key: []byte(os.Getenv("JWT_REFRESH"))},
 		SuccessHandler: resendToken,
 	})
+}
+
+func ReqAdmin(c *fiber.Ctx) error {
+
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	uid := fmt.Sprintf("%v", claims["uid"])
+
+	db := database.DBConn
+
+	var roleUser models.User
+	result := db.Find(&roleUser, "id = ?", uid)
+	if result.RowsAffected == 0 {
+		return c.Status(503).JSON(fiber.Map{
+			"status":  "warning",
+			"message": "Warning : Can't find user",
+			"result":  "No result.",
+		})
+	}
+
+	if roleUser.Role != "admin" {
+		return c.Status(404).JSON(fiber.Map{
+			"status":  "invalid",
+			"message": "Invalis : This role does not have access to this service.",
+		})
+	}
+	c.Next()
+	return nil
 }
 
 func errNext(c *fiber.Ctx, err error) error {
@@ -53,10 +84,9 @@ func resendToken(c *fiber.Ctx) error {
 	controllers.SetAccessToken("access_token:"+uid, acc_token)
 
 	c.Next()
-	return c.Status(200).JSON(fiber.Map{
+	return c.Status(401).JSON(fiber.Map{
 		"status":  "warning",
 		"message": "Warning : Refresh token.",
 		"token":   controllers.GetToken("access_token:" + uid),
 	})
-
 }

@@ -11,7 +11,7 @@ import (
 )
 
 // Functions Userparams after login - User routher.
-func UserParams(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/user/params/dashboard
+func UserParams(c *fiber.Ctx) error { // Routes Post -> http://127.0.0.1:3000/api/user/params/dashboard
 	user := c.Locals("user").(*jwt.Token)
 	claims := user.Claims.(jwt.MapClaims)
 	fmt.Print(claims["uid"])
@@ -23,12 +23,19 @@ func UserParams(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/use
 }
 
 // Functions List all users - User routher .
-func UserList(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/user/
+func UserList(c *fiber.Ctx) error { // Routes Get -> http://127.0.0.1:3000/api/user/
+
+	// Connect database
 	db := database.DBConn
 
+	user := c.Locals("user").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+	uid := fmt.Sprintf("%v", claims["uid"])
+
+	// Recive find all users.
 	var listUser []models.User
-	resultUser := db.Find(&listUser)
-	if resultUser.RowsAffected == 0 {
+	resultUser := db.Find(&listUser, "id != ?", uid)
+	if resultUser.RowsAffected == 0 { // Case : Table user is empty.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "warning",
 			"message": "Warning : Can't find user",
@@ -36,14 +43,16 @@ func UserList(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/user/
 		})
 	}
 
-	return c.Status(500).JSON(fiber.Map{
+	// Return Status200, json data
+	return c.Status(200).JSON(fiber.Map{
 		"status":  "success",
 		"message": "Success : Find all user success",
 		"result":  listUser,
 	})
 }
 
-func UserRead(c *fiber.Ctx) error {
+// Functions Read all users - User routher.
+func UserRead(c *fiber.Ctx) error { // Routes Get -> http://127.0.0.1:3000/api/user/:id
 	db := database.DBConn
 
 	id := c.Params("id")
@@ -51,7 +60,7 @@ func UserRead(c *fiber.Ctx) error {
 	var readUser models.User
 
 	resultUser := db.Find(&readUser, "id = ?", id)
-	if resultUser.RowsAffected == 0 {
+	if resultUser.RowsAffected == 0 { // Case : Table user is empty.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "warning",
 			"message": "Warning : Can't find user",
@@ -59,6 +68,7 @@ func UserRead(c *fiber.Ctx) error {
 		})
 	}
 
+	// Return Status200, json data
 	return c.Status(200).JSON(fiber.Map{
 		"status":  "success",
 		"message": "Success : Find user success",
@@ -66,7 +76,8 @@ func UserRead(c *fiber.Ctx) error {
 	})
 }
 
-func UserUpdate(c *fiber.Ctx) error {
+// Functions Update all users - User routher.
+func UserUpdate(c *fiber.Ctx) error { // Routes Put -> http://127.0.0.1:3000/api/user/:id
 	db := database.DBConn
 	id := c.Params("id")
 
@@ -95,20 +106,24 @@ func UserUpdate(c *fiber.Ctx) error {
 	})
 }
 
-func UserRemove(c *fiber.Ctx) error {
+// Functions Remove all users - User routher.
+func UserRemove(c *fiber.Ctx) error { // Routes Delete -> http://127.0.0.1:3000/api/user/:id
 	db := database.DBConn
 	id := c.Params("id")
 
 	var user models.User
 
 	db.Delete(&user, id)
-	return c.Status(503).JSON(fiber.Map{
+
+	// Return Status200, json data
+	return c.Status(200).JSON(fiber.Map{
 		"status":  "success",
 		"message": "Success : Remove user success",
 	})
 }
 
-func UserActive(c *fiber.Ctx) error {
+// Functions Active all users - User routher.
+func UserActive(c *fiber.Ctx) error { // Routes Put -> http://127.0.0.1:3000/api/user/active/:id
 	db := database.DBConn
 
 	id := c.Params("id")
@@ -144,7 +159,8 @@ func UserActive(c *fiber.Ctx) error {
 	})
 }
 
-func UserLogout(c *fiber.Ctx) error {
+// Functions Delete all users - User routher.
+func UserLogout(c *fiber.Ctx) error { // Routes Post -> http://127.0.0.1:3000/api/user/:id
 	user := c.Locals("user").(*jwt.Token)
 	claims := user.Claims.(jwt.MapClaims)
 	uid := fmt.Sprintf("%v", claims["uid"])
@@ -175,6 +191,11 @@ func UserLogout(c *fiber.Ctx) error {
 
 }
 
+func MiddleWareEndpoint(c *fiber.Ctx) error {
+	return c.SendString("Hello, Test middleware endpoint.")
+}
+
+// Functions delete from redis.
 func DeleteFromRedis(key string) (string, error) {
 	rd := database.RDConn
 	ctx := context.Background()

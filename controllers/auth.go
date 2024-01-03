@@ -15,7 +15,7 @@ import (
 )
 
 // Functions register - Authen routher.
-func Regis(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/auth/register
+func Regis(c *fiber.Ctx) error { // Routes Post -> http://127.0.0.1:3000/api/auth/register
 
 	// Connect Database.
 	db := database.DBConn
@@ -75,9 +75,9 @@ func Regis(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/auth/reg
 }
 
 // Functions register - Authen login.
-func Login(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/auth/login
+func Login(c *fiber.Ctx) error { // Routes Post -> http://127.0.0.1:3000/api/auth/login
 
-	// Connect Database.
+	// Connect database.
 	db := database.DBConn
 
 	// Recive body parser register routes.
@@ -94,7 +94,7 @@ func Login(c *fiber.Ctx) error { // Routes -> http://127.0.0.1:3000/api/auth/log
 	// Checked email address.
 	var user models.User
 	result := db.Find(&user, "email = ?", strings.TrimSpace(loginBody.Email))
-	if result.RowsAffected == 0 { // Case : can't find email in database.
+	if result.RowsAffected == 0 { // Case : Can't find email in database.
 		return c.Status(503).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Error : Email invalid.",
@@ -159,7 +159,7 @@ func CreateToken(udid string, env string) (string, error) {
 func SetAccessToken(key string, token string) {
 	rd := database.RDConn
 	ctx := context.Background()
-	rd.Set(ctx, key, token, time.Hour*2)
+	rd.Set(ctx, key, token, time.Second*10)
 }
 
 func SetRefreshToken(key string, token string) {
